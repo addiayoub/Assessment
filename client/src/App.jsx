@@ -1,47 +1,96 @@
 import { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import ModernQuestionnaireLoader from './Loader/ModernQuestionnaireLoader';
 import AuthPage from './Auth/AuthPage';
+import EmailVerification from './Auth/EmailVerification';
+import ForgotPassword from './Auth/ForgotPassword';
+import ResetPassword from './Auth/ResetPassword';
+import UserDashboard from './USER/UserDashboard';
+import authService from './services/authService';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showLoader, setShowLoader] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowLoader(false);
-    }, 6000);
+    const initializeAuth = async () => {
+      const authStatus = await authService.initialize();
+      setIsAuthenticated(authStatus);
+      setIsInitializing(false);
+      
+      // Cache le loader après 3 secondes ou une fois l'authentification initialisée
+      setTimeout(() => {
+        setShowLoader(false);
+      }, 3000);
+    };
 
-    return () => clearTimeout(timer);
+    initializeAuth();
   }, []);
 
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
-    console.log('Utilisateur connecté avec succès');
   };
 
-  if (showLoader) {
+  const handleLogout = () => {
+    authService.logout();
+    setIsAuthenticated(false);
+  };
+
+  if (isInitializing || showLoader) {
     return <ModernQuestionnaireLoader />;
   }
 
   return (
-    <div className="App">
-      {!isAuthenticated ? (
-        <AuthPage onLoginSuccess={handleLoginSuccess} />
-      ) : (
-        <div className="flex items-center justify-center min-h-screen bg-gray-50">
-          <div className="p-8 text-center">
-            <h1 className="text-3xl font-bold text-orange-600 mb-4">Bienvenue dans Assessment</h1>
-            <p className="text-gray-700 mb-6">Vous êtes maintenant connecté à votre espace questionnaire.</p>
-            <button
-              onClick={() => setIsAuthenticated(false)}
-              className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-            >
-              Se déconnecter
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+    <Router>
+      <div className="App">
+        <Routes>
+          {/* Route publique - Page d'authentification */}
+          <Route 
+            path="/auth" 
+            element={
+              !isAuthenticated ? (
+                <AuthPage onLoginSuccess={handleLoginSuccess} />
+              ) : (
+                <Navigate to="/dashboard" replace />
+              )
+            } 
+          />
+          
+          {/* Route de vérification d'email */}
+          <Route path="/verify-email" element={<EmailVerification />} />
+                    <Route path="/login" element={<AuthPage />} />
+
+          {/* Mot de passe oublié */}
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          
+          {/* Tableau de bord privé */}
+          <Route 
+            path="/dashboard" 
+            element={
+              isAuthenticated ? (
+                <UserDashboard onLogout={handleLogout} />
+              ) : (
+                <Navigate to="/auth" replace />
+              )
+            } 
+          />
+          
+          {/* Route par défaut */}
+          <Route 
+            path="/" 
+            element={
+              isAuthenticated ? (
+                <Navigate to="/dashboard" replace />
+              ) : (
+                <Navigate to="/auth" replace />
+              )
+            } 
+          />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 

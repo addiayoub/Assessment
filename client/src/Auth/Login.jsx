@@ -1,24 +1,43 @@
 import { motion } from 'framer-motion';
-import { Mail, Lock, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import { useState } from 'react';
+import authService from '../services/authService';
 
-const Login = ({ onSwitchAuth, onGoogleLogin, animate }) => {
+const Login = ({ onSwitchAuth, animate }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      console.log('Login with:', email, password);
+      const response = await authService.login({
+        email,
+        password,
+        rememberMe
+      });
+
+      if (response.success) {
+        // Rediriger vers le dashboard ou la page souhaitée
+        window.location.href = '/dashboard';
+      } else {
+        setError(response.message || 'Erreur de connexion');
+      }
     } catch (err) {
-      setError('Identifiants incorrects');
+      setError(err.message || 'Erreur de connexion');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleLogin = () => {
+    authService.loginWithGoogle();
   };
 
   return (
@@ -69,13 +88,24 @@ const Login = ({ onSwitchAuth, onGoogleLogin, animate }) => {
             <input
               id="password"
               name="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               required
-              className="block w-full py-3 pl-10 pr-3 text-gray-900 placeholder-gray-500 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              className="block w-full py-3 pl-10 pr-10 text-gray-900 placeholder-gray-500 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               placeholder="Mot de passe"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            <button
+              type="button"
+              className="absolute inset-y-0 right-0 flex items-center pr-3"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? (
+                <EyeOff className="w-5 h-5 text-gray-400 hover:text-orange-500" />
+              ) : (
+                <Eye className="w-5 h-5 text-gray-400 hover:text-orange-500" />
+              )}
+            </button>
           </div>
 
           <div className="flex items-center justify-between">
@@ -85,6 +115,8 @@ const Login = ({ onSwitchAuth, onGoogleLogin, animate }) => {
                 name="remember-me"
                 type="checkbox"
                 className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
               />
               <label htmlFor="remember-me" className="block ml-2 text-sm text-gray-900">
                 Se souvenir de moi
@@ -92,7 +124,7 @@ const Login = ({ onSwitchAuth, onGoogleLogin, animate }) => {
             </div>
 
             <div className="text-sm">
-              <a href="#" className="font-medium text-orange-600 hover:text-orange-500">
+              <a href="/forgot-password" className="font-medium text-orange-600 hover:text-orange-500">
                 Mot de passe oublié?
               </a>
             </div>
@@ -103,7 +135,7 @@ const Login = ({ onSwitchAuth, onGoogleLogin, animate }) => {
             disabled={loading}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="group relative flex w-full justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 shadow-lg hover:shadow-xl"
+            className="group relative flex w-full justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="absolute inset-y-0 left-0 flex items-center pl-3">
               {loading ? (
@@ -126,7 +158,7 @@ const Login = ({ onSwitchAuth, onGoogleLogin, animate }) => {
         </div>
 
         <motion.button
-          onClick={onGoogleLogin}
+          onClick={handleGoogleLogin}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           className="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm hover:shadow-md"
@@ -154,4 +186,4 @@ const Login = ({ onSwitchAuth, onGoogleLogin, animate }) => {
   );
 };
 
-export default Login;////
+export default Login;

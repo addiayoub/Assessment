@@ -1,25 +1,91 @@
 import { motion } from 'framer-motion';
-import { User, Mail, Lock, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import { User, Mail, Eye, EyeOff, Lock, ArrowRight, AlertCircle, Loader2, CheckCircle } from 'lucide-react';
 import { useState } from 'react';
+import authService from '../services/authService';
 
-const Register = ({ onSwitchAuth, onGoogleLogin, animate }) => {
+const Register = ({ onSwitchAuth, animate }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Validation en temps réel du mot de passe
+  const getPasswordStrength = (password) => {
+    if (password.length === 0) return { strength: 0, text: '' };
+    if (password.length < 6) return { strength: 1, text: 'Trop court', color: 'text-red-500' };
+    if (password.length < 8) return { strength: 2, text: 'Faible', color: 'text-orange-500' };
+    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) return { strength: 3, text: 'Moyen', color: 'text-yellow-500' };
+    return { strength: 4, text: 'Fort', color: 'text-green-500' };
+  };
+
+  const passwordStrength = getPasswordStrength(password);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
+    setSuccess('');
+
+    // Validations côté client
+    if (!name.trim()) {
+      setError('Le nom est requis');
+      setLoading(false);
+      return;
+    }
+
+    if (!email.trim()) {
+      setError('L\'email est requis');
+      setLoading(false);
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Le mot de passe doit contenir au moins 6 caractères');
+      setLoading(false);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Les mots de passe ne correspondent pas');
+      setLoading(false);
+      return;
+    }
+
+    if (!acceptTerms) {
+      setError('Vous devez accepter les conditions d\'utilisation');
+      setLoading(false);
+      return;
+    }
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      console.log('Register with:', name, email, password);
+      const response = await authService.register({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password
+      });
+
+      if (response.success) {
+        setSuccess('Compte créé avec succès ! Redirection...');
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+        }, 2000);
+      } else {
+        setError(response.message || 'Erreur lors de la création du compte');
+      }
     } catch (err) {
-      setError('Une erreur est survenue');
+      setError(err.message || 'Erreur lors de la création du compte');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleLogin = () => {
+    authService.loginWithGoogle();
   };
 
   return (
@@ -43,6 +109,17 @@ const Register = ({ onSwitchAuth, onGoogleLogin, animate }) => {
           >
             <AlertCircle className="w-5 h-5 mr-2" />
             <span>{error}</span>
+          </motion.div>
+        )}
+
+        {success && (
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="flex items-center p-4 text-sm text-green-700 bg-green-100 rounded-lg"
+          >
+            <CheckCircle className="w-5 h-5 mr-2" />
+            <span>{success}</span>
           </motion.div>
         )}
 
@@ -86,14 +163,76 @@ const Register = ({ onSwitchAuth, onGoogleLogin, animate }) => {
             <input
               id="password"
               name="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               required
-              className="block w-full py-3 pl-10 pr-3 text-gray-900 placeholder-gray-500 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              className="block w-full py-3 pl-10 pr-10 text-gray-900 placeholder-gray-500 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               placeholder="Mot de passe"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            <button
+              type="button"
+              className="absolute inset-y-0 right-0 flex items-center pr-3"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? (
+                <EyeOff className="w-5 h-5 text-gray-400 hover:text-orange-500" />
+              ) : (
+                <Eye className="w-5 h-5 text-gray-400 hover:text-orange-500" />
+              )}
+            </button>
           </div>
+
+          {/* Indicateur de force du mot de passe */}
+          {password && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Force du mot de passe:</span>
+                <span className={`text-sm font-medium ${passwordStrength.color}`}>
+                  {passwordStrength.text}
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    passwordStrength.strength === 1 ? 'bg-red-500 w-1/4' :
+                    passwordStrength.strength === 2 ? 'bg-orange-500 w-2/4' :
+                    passwordStrength.strength === 3 ? 'bg-yellow-500 w-3/4' :
+                    passwordStrength.strength === 4 ? 'bg-green-500 w-full' : 'w-0'
+                  }`}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <Lock className="w-5 h-5 text-orange-500" />
+            </div>
+            <input
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              required
+              className={`block w-full py-3 pl-10 pr-3 text-gray-900 placeholder-gray-500 border rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:border-transparent ${
+                confirmPassword && password !== confirmPassword
+                  ? 'border-red-300 focus:ring-red-500'
+                  : 'border-gray-200 focus:ring-orange-500'
+              }`}
+              placeholder="Confirmer le mot de passe"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+            {confirmPassword && password !== confirmPassword && (
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                <AlertCircle className="w-5 h-5 text-red-500" />
+              </div>
+            )}
+          </div>
+
+          {confirmPassword && password !== confirmPassword && (
+            <p className="text-sm text-red-600">Les mots de passe ne correspondent pas</p>
+          )}
 
           <div className="flex items-center">
             <input
@@ -102,18 +241,27 @@ const Register = ({ onSwitchAuth, onGoogleLogin, animate }) => {
               type="checkbox"
               required
               className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+              checked={acceptTerms}
+              onChange={(e) => setAcceptTerms(e.target.checked)}
             />
             <label htmlFor="terms" className="block ml-2 text-sm text-gray-900">
-              J'accepte les <a href="#" className="text-orange-600 hover:text-orange-500">conditions</a>
+              J'accepte les{' '}
+              <a href="/terms" className="text-orange-600 hover:text-orange-500 underline">
+                conditions d'utilisation
+              </a>
+              {' '}et la{' '}
+              <a href="/privacy" className="text-orange-600 hover:text-orange-500 underline">
+                politique de confidentialité
+              </a>
             </label>
           </div>
 
           <motion.button
             type="submit"
-            disabled={loading}
+            disabled={loading || !acceptTerms || password !== confirmPassword}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="group relative flex w-full justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 shadow-lg hover:shadow-xl"
+            className="group relative flex w-full justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="absolute inset-y-0 left-0 flex items-center pl-3">
               {loading ? (
@@ -136,7 +284,7 @@ const Register = ({ onSwitchAuth, onGoogleLogin, animate }) => {
         </div>
 
         <motion.button
-          onClick={onGoogleLogin}
+          onClick={handleGoogleLogin}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           className="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm hover:shadow-md"
